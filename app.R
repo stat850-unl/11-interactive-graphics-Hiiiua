@@ -8,40 +8,68 @@
 #
 
 library(shiny)
+library(ggplot2)
+library(dplyr)
+
+
+# Read in the data and keep wanted columns
+cocktails <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-26/cocktails.csv')
+cocktails <- cocktails[is.na(cocktails$alcoholic)==FALSE,c('drink','category', 'alcoholic', 'ingredient')]
+cocktails$alcoholic[which(cocktails$alcoholic=="Non alcoholic")] <- 'Non Alcoholic'
+cocktails <- data.frame(cocktails)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
 
     # Application title
-    titlePanel("Old Faithful Geyser Data"),
+    titlePanel("Cocktail"),
 
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
-        )
-    )
+    # Sidebar with a slider input for alcoholic type 
+    sidebarPanel(
+        selectInput("alco_type", "Alcoholic Type", choices = unique(cocktails$alcoholic),selected = "Alcoholic")
+    ),
+    # Plot of barchart
+    tabsetPanel(
+        tabPanel("Barchart", plotOutput("alcoh"))
+    ),
+    
+    # Input text for ingredient 
+    inputPanel(
+        textInput("ingredient", "Search by Ingredient",value = 'Cacao'),
+    ),
+    # Print the name and ingredients
+    verbatimTextOutput("recipe")
 )
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-
-    output$distPlot <- renderPlot({
+    # Filter the specific alcoholic subset 
+    cocktail_subset <- reactive({
+        cocktails %>% filter(alcoholic %in% input$alco_type)
+    })
+    # Filter the specific ingredient
+    cocktail_ingredient <- reactive({
+        cocktails[grepl(input$ingredient,
+                        cocktails$ingredient,
+                        fixed = TRUE,
+                        ignore.case = TRUE ),]
+    })
+    
+    # Renderplot bar chart
+    output$alcoh <- renderPlot({
         # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white')
+        cocktail_sub <- cocktail_subset()
+        ggplot(data = cocktail_sub, aes(x = category, fill = category)) +
+            geom_bar(stat = "count")+
+            theme_bw() +
+            ggtitle(paste("Number of", input$alco_type, "categories"))+
+            theme(axis.text.x = element_text(angle=60, hjust = 1))
+    })
+    # Renderprint the name and ingredients
+    output$recipe <- renderPrint({
+        cocktail_ing <- cocktail_ingredient()
+        cocktail_ing <- cocktail_ing[,c('drink', 'ingredient')]
+        unique(cocktail_ing)
     })
 }
 
